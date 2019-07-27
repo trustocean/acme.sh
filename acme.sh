@@ -175,7 +175,7 @@ _printargs() {
     printf -- "%s" "$1='$2'"
   fi
   printf "\n"
-  # return the saved exit status 
+  # return the saved exit status
   return "$_exitstatus"
 }
 
@@ -1463,7 +1463,7 @@ _time2str() {
 }
 
 _normalizeJson() {
-  sed "s/\" *: *\([\"{\[]\)/\":\1/g" | sed "s/^ *\([^ ]\)/\1/" | tr -d "\r\n"
+  sed "s/\" *: *\([\"{\[]\)/\":\1/g" | sed "s/^ *\([^ ]\)/\1/"
 }
 
 _stat() {
@@ -3970,6 +3970,8 @@ $_authorizations_map"
       fi
 
       if [ "$ACME_VERSION" = "2" ]; then
+        filecontent="$(echo "$_authorizations_map" | _egrep_o '"filecontent":"[^"]*')"
+        _debug filecontent "$filecontent"
         response="$(echo "$_authorizations_map" | grep "^$(_idn "$d")," | sed "s/$d,//")"
         _debug2 "response" "$response"
         if [ -z "$response" ]; then
@@ -4025,7 +4027,11 @@ $_authorizations_map"
         _on_issue_err "$_post_hook"
         return 1
       fi
-      keyauthorization="$token.$thumbprint"
+      if [ $filecontent ]; then
+        keyauthorization="$filecontent"
+      else
+        keyauthorization="$token.$thumbprint"
+      fi
       _debug keyauthorization "$keyauthorization"
 
       if printf "%s" "$response" | grep '"status":"valid"' >/dev/null 2>&1; then
@@ -4034,7 +4040,7 @@ $_authorizations_map"
         _debug keyauthorization "$keyauthorization"
       fi
 
-      dvlist="$d$sep$keyauthorization$sep$uri$sep$vtype$sep$_currentRoot"
+      dvlist="$d$sep$keyauthorization$sep$uri$sep$vtype$sep$_currentRoot$sep$token"
       _debug dvlist "$dvlist"
 
       vlist="$vlist$dvlist$dvsep"
@@ -6143,7 +6149,7 @@ Parameters:
   --branch, -b                      Only valid for '--upgrade' command, specifies the branch name to upgrade to.
 
   --notify-level  0|1|2|3           Set the notification level:  Default value is $NOTIFY_LEVEL_DEFAULT.
-                                     0: disabled, no notification will be sent. 
+                                     0: disabled, no notification will be sent.
                                      1: send notifications only when there is an error.
                                      2: send notifications when a cert is successfully renewed, or there is an error.
                                      3: send notifications when a cert is skipped, renewed, or error.
