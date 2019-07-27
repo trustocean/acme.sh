@@ -123,6 +123,8 @@ NOTIFY_MODE_CERT=1
 
 NOTIFY_MODE_DEFAULT=$NOTIFY_MODE_BULK
 
+ACME_CSR_EAGER=0
+
 _DEBUG_WIKI="https://github.com/Neilpang/acme.sh/wiki/How-to-debug-acme.sh"
 
 _PREPARE_LINK="https://github.com/Neilpang/acme.sh/wiki/Install-preparations"
@@ -2427,6 +2429,12 @@ _initAPI() {
     fi
     export ACME_AGREEMENT
 
+    ACME_CSR_EAGER=$(echo "$response" | _egrep_o 'csr-eager" *: *[^,^}]*' | cut -d ':' -f 2)
+    if [ -z "$ACME_CSR_EAGER" ]; then
+      ACME_CSR_EAGER=$(echo "$response" | _egrep_o 'csrEager" *: *[^,^}]*' | cut -d ':' -f 2)
+    fi
+    export ACME_CSR_EAGER
+
     _debug "ACME_KEY_CHANGE" "$ACME_KEY_CHANGE"
     _debug "ACME_NEW_AUTHZ" "$ACME_NEW_AUTHZ"
     _debug "ACME_NEW_ORDER" "$ACME_NEW_ORDER"
@@ -2434,6 +2442,7 @@ _initAPI() {
     _debug "ACME_REVOKE_CERT" "$ACME_REVOKE_CERT"
     _debug "ACME_AGREEMENT" "$ACME_AGREEMENT"
     _debug "ACME_NEW_NONCE" "$ACME_NEW_NONCE"
+    _debug "ACME_CSR_EAGER" "$ACME_CSR_EAGER"
     _debug "ACME_VERSION" "$ACME_VERSION"
 
   fi
@@ -3870,7 +3879,13 @@ issue() {
         _identifiers="$_identifiers,{\"type\":\"dns\",\"value\":\"$(_idn "$d")\"}"
       done
       _debug2 _identifiers "$_identifiers"
-      if ! _send_signed_request "$ACME_NEW_ORDER" "{\"identifiers\": [$_identifiers]}"; then
+      der="$(_getfile "${CSR_PATH}" "${BEGIN_CSR}" "${END_CSR}" | tr -d "\r\n" | _url_replace)"
+      if [ $ACME_CSR_EAGER = "1" ]; then
+        csrEager=",\"csr\": \"$der\""
+      else
+        csrEager=""
+      fi
+      if ! _send_signed_request "$ACME_NEW_ORDER" "{\"identifiers\": [$_identifiers]$csrEager}"; then
         _err "Create new order error."
         _clearup
         _on_issue_err "$_post_hook"
@@ -4368,7 +4383,12 @@ $_authorizations_map"
 
   if [ "$ACME_VERSION" = "2" ]; then
     _info "Lets finalize the order, Le_OrderFinalize: $Le_OrderFinalize"
-    if ! _send_signed_request "${Le_OrderFinalize}" "{\"csr\": \"$der\"}"; then
+    if [ $ACME_CSR_EAGER = "1" ]; then
+      csrEager=""
+    else
+      csrEager=",\"csr\": \"$der\""
+    fi
+    if ! _send_signed_request "${Le_OrderFinalize}" "{$csrEager}"; then
       _err "Sign failed."
       _on_issue_err "$_post_hook"
       return 1
